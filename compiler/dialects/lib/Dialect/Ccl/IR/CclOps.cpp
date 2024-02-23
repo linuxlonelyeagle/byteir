@@ -173,7 +173,8 @@ LogicalResult BroadcastOp::verify() {
 
 struct EliminateDuplicateWait : public OpRewritePattern<BroadcastOp> {
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(BroadcastOp op, PatternRewriter& rewriter) const override {
+  LogicalResult matchAndRewrite(BroadcastOp op,
+                                PatternRewriter &rewriter) const override {
     auto nextOp = op.getOperation()->getNextNode();
     if (nextOp && isa<WaitOp>(nextOp)) {
       auto nextNextOp = nextOp->getNextNode();
@@ -188,7 +189,8 @@ struct EliminateDuplicateWait : public OpRewritePattern<BroadcastOp> {
 
 struct CombineBroadcastAndWait : public OpRewritePattern<BroadcastOp> {
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(BroadcastOp op, PatternRewriter& rewriter) const override {
+  LogicalResult matchAndRewrite(BroadcastOp op,
+                                PatternRewriter &rewriter) const override {
     auto nextOp = op.getOperation()->getNextNode();
     if (nextOp && isa<WaitOp>(nextOp) && op.getSynchronous() == false) {
       op.setSynchronous(true);
@@ -201,7 +203,8 @@ struct CombineBroadcastAndWait : public OpRewritePattern<BroadcastOp> {
 
 struct EliminateUnnecessaryWait : public OpRewritePattern<BroadcastOp> {
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(BroadcastOp op, PatternRewriter& rewriter) const override {
+  LogicalResult matchAndRewrite(BroadcastOp op,
+                                PatternRewriter &rewriter) const override {
     auto nextOp = op.getOperation()->getNextNode();
     if (nextOp && isa<WaitOp>(nextOp) && op.getSynchronous() == true) {
       rewriter.replaceOp(nextOp, op);
@@ -211,12 +214,15 @@ struct EliminateUnnecessaryWait : public OpRewritePattern<BroadcastOp> {
   }
 };
 
-void BroadcastOp::getCanonicalizationPatterns(RewritePatternSet &results, MLIRContext *context) {
+void BroadcastOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                              MLIRContext *context) {
+  // clang-format off
   results.add<
   EliminateDuplicateWait,
   EliminateUnnecessaryWait,
   CombineBroadcastAndWait
   >(context);
+  // clamg-format on
 }
 
 //===----------------------------------------------------------------------===//

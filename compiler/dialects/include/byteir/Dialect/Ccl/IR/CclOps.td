@@ -192,8 +192,12 @@ def Ccl_BroadcastOp : Ccl_ReplicaGroupsOp<"broadcast", [Pure]> {
   );
   let results = (outs AnyTensor:$result);
 
+  let assemblyFormat = [{
+    $src (`,` $dynamic_replica_groups^)? attr-dict `:` functional-type(operands, results)
+  }];
   let extraClassDeclaration = commonExtraClassDeclaration;
   let hasVerifier = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Ccl_SendOp : Ccl_Op<"send", [Pure,
