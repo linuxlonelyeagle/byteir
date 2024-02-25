@@ -30,4 +30,9 @@ def CclMoveDown : Pass<"ccl-move-down", "mlir::func::FuncOp"> {
   let constructor = "mlir::createCclMoveDownPass()";
 }
 
+def CclBufferlize : Pass<"ccl-bufferlize", "mlir::ModuleOp"> {
+  let summary = "Bufferlize ccl dialect";
+  let constructor = "mlir::createCclBufferlizePass()";
+}
+
 #endif // BYTEIR_DIALECT_CCL_PASSES

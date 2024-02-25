@@ -19,6 +19,7 @@
 #define BYTEIR_DIALECT_CCL_PASSES_H
 
 #include "byteir/Dialect/Ccl/Transforms/CclMoveDown.h"
+#include "byteir/Dialect/Ccl/Transforms/CclBufferlize.h"
 
 namespace mlir {
 
