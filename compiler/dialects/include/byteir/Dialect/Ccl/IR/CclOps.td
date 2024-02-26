@@ -184,13 +184,13 @@ def Ccl_BroadcastOp : Ccl_ReplicaGroupsOp<"broadcast", [Pure]> {
   }];
 
   let arguments = (ins
-    AnyTensor:$src,
-    Optional<AnyTensor>:$dynamic_replica_groups,
+    AnyTypeOf<[AnyTensor, AnyMemRef]>:$src,
+    Optional<AnyTypeOf<[AnyTensor, AnyMemRef]>>:$dynamic_replica_groups,
     BoolAttr:$synchronous,
     OptionalAttr<IndexListArrayAttr>:$replica_groups,
     OptionalAttr<I64Attr>:$unique_id
   );
-  let results = (outs AnyTensor:$result);
+  let results = (outs Variadic<AnyTypeOf<[AnyTensor, AnyMemRef]>>:$result);
 
   let assemblyFormat = [{
     $src (`,` $dynamic_replica_groups^)? attr-dict `:` functional-type(operands, results)
