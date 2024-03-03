@@ -50,6 +50,18 @@ bool anyIncompatibleUse(Value oldValue, Value newValue) {
          (oldValue.getType() != newValue.getType());
 }
 
+bool allAliasesFromReshapeOp(llvm::ArrayRef<Value> aliases) {
+  if (aliases.size() <= 1) 
+    return false;
+  if (!isa<memref::AllocOp>(aliases[0].getDefiningOp()))
+    return false;
+  for (size_t idx = 1; idx != aliases.size(); ++idx) {
+    if (!isa<memref::CollapseShapeOp, memref::ExpandShapeOp>(aliases[idx].getDefiningOp())) 
+      return false;
+  }
+  return true;
+}
+
 class RemoveCopyPattern : public OpRewritePattern<memref::CopyOp> {
 public:
   RemoveCopyPattern(MLIRContext *context, DominanceInfo &dom)
@@ -65,10 +77,10 @@ public:
     LLVM_DEBUG(llvm::dbgs() << "match CopyOp " << copyOp << "\n");
 
     // only support at least one alloc for now
-    if (!src.getDefiningOp<memref::AllocOp>() &&
+    /*if (!src.getDefiningOp<memref::AllocOp>() &&
         !target.getDefiningOp<memref::AllocOp>()) {
       return failure();
-    }
+    }*/
 
     auto allocUseInTerminator = [](memref::AllocOp alloc) {
       for (auto user : alloc.getResult().getUsers()) {
@@ -92,10 +104,21 @@ public:
         }
       }
     }
-
     SmallVector<SmallVector<Value>, 2> aliases(2);
     getAllAlias(copyOp, aliases, /*skipNonOverlapedSubviews*/ true);
-
+    /*llvm::outs() << "print copyOp:\n";
+    copyOp.print(llvm::outs());
+    llvm::outs() << "\n";
+    llvm::outs() << "print src alias:\n";
+    for (auto alias : aliases[0]) {
+      alias.print(llvm::outs());
+      llvm::outs() << "\n";
+    }
+    llvm::outs() << "print target alias:\n";
+    for (auto alias : aliases[1]) {
+      alias.print(llvm::outs());
+      llvm::outs() << "\n";
+    }*/
     llvm::DenseMap<Operation *, unsigned> opToIdx;
     unsigned idx = 0;
     copyOp->getBlock()->walk<WalkOrder::PreOrder>(
@@ -150,7 +173,6 @@ public:
       LLVM_DEBUG(llvm::dbgs() << "failed to replace constant src");
       return failure();
     }
-
     // now it is legal to rewrite.
     // we prefer target alloc over src alloc in this implementation
     if (auto targetAlloc = target.getDefiningOp<memref::AllocOp>()) {
@@ -171,7 +193,6 @@ public:
         return success();
       }
     }
-
     if (auto srcAlloc = src.getDefiningOp<memref::AllocOp>()) {
       if (auto targetDef = target.getDefiningOp()) {
         if (isa<memref::AllocOp, memref::SubViewOp>(targetDef))
@@ -183,13 +204,79 @@ public:
                                 << " not dominated by " << srcAlloc << "\n");
         return failure();
       }
-
+      
       if (!anyIncompatibleUse(src, target)) {
         rewriter.replaceOp(srcAlloc, {target});
         return success();
       }
-    }
-
+    } /*else if (allAliasesFromReshapeOp(aliases[0])) { 
+      auto srcAlloc = cast<memref::AllocOp>(aliases[0][0].getDefiningOp());
+      if (auto targetDef = target.getDefiningOp()) {
+        if (isa<memref::AllocOp, memref::SubViewOp>(targetDef))
+          hoistUpOpInBlock(targetDef, domInfo);
+      }
+      
+      if (!domInfo.properlyDominates(target, srcAlloc)) {
+        LLVM_DEBUG(llvm::dbgs() << "failed at target " << target
+                                << " not dominated by " << srcAlloc << "\n");
+        return failure();
+      }
+      auto srcAllocType = srcAlloc.getType();
+      auto targetType = target.getType().cast<MemRefType>();
+      // create collapseShapeOp.
+      if (srcAllocType.getRank() < targetType.getRank()) {
+        auto srcAllocShape = srcAllocType.getShape();
+        auto targetShape = targetType.getShape();
+        llvm::SmallVector<ReassociationIndices> reassociation;
+        int index = 0;
+        for (auto targetDim : targetShape) {
+          ReassociationIndices indices; 
+          for (auto srcAllocDim : srcAllocShape) {
+            while (targetDim >= 1) {
+              targetDim = targetDim / srcAllocDim;
+              indices.push_back(index++);
+            }
+          }
+          reassociation.push_back(indices);
+        }
+        rewriter.setInsertionPoint(srcAlloc);
+        auto collapseShapeOp = rewriter.create<memref::CollapseShapeOp>(srcAlloc.getLoc(), srcAllocType, target, reassociation);
+        if (!anyIncompatibleUse(srcAlloc, collapseShapeOp)) 
+          rewriter.replaceOp(srcAlloc, collapseShapeOp);
+        if (!anyIncompatibleUse(src, target))
+          rewriter.replaceOp(src.getDefiningOp(), target); 
+        return success();
+      } else if (srcAllocType.getRank() > targetType.getRank()) {
+       return failure(); 
+      }
+    }*/
+      /*if (auto collapseShapeOp = aliases[0][1].getDefiningOp<memref::CollapseShapeOp>()) {
+        rewriter.setInsertionPoint(srcAlloc);
+        auto expandShapeOp = rewriter.create<memref::ExpandShapeOp>(srcAlloc.getLoc(), srcAlloc.getType(), target, collapseShapeOp.getReassociationIndices());
+        rewriter.replaceOp(srcAlloc, expandShapeOp);
+        rewriter.replaceOp(collapseShapeOp, target);
+        return success();
+      } else if (auto expandShapeOp = aliases[0][1].getDefiningOp<memref::ExpandShapeOp>()) {
+        rewriter.setInsertionPoint(srcAlloc);
+        auto collapseShapeOp = rewriter.create<memref::CollapseShapeOp>(srcAlloc.getLoc(), srcAlloc.getType(), target, expandShapeOp.getReassociationIndices());
+        rewriter.replaceOp(srcAlloc, collapseShapeOp);
+        rewriter.replaceOp(expandShapeOp, target);
+        return success();
+      }*/
+    /*else if (auto collapseShapeOp = src.getDefiningOp<memref::CollapseShapeOp>()) {       
+      if (auto srcAlloc = collapseShapeOp.getSrc().getDefiningOp<memref::AllocOp>()) {
+        if (!domInfo.properlyDominates(target, srcAlloc)) {
+          LLVM_DEBUG(llvm::dbgs() << "failed at target " << target
+                                  << " not dominated by " << srcAlloc << "\n");
+          return failure();
+        }
+        rewriter.setInsertionPoint(srcAlloc);
+        auto expandShape = rewriter.create<memref::ExpandShapeOp>(srcAlloc.getLoc(), srcAlloc.getType(), target, collapseShapeOp.getReassociationIndices());
+        rewriter.replaceOp(srcAlloc, expandShape);
+        rewriter.replaceOp(collapseShapeOp, {target});
+        return success(); 
+      }
+    }*/
     return failure();
   }
 
