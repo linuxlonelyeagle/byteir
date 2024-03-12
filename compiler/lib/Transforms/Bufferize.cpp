@@ -24,6 +24,8 @@
 #include "byteir/Dialect/Linalg/IR/LinalgExtOps.h"
 #include "byteir/Dialect/Linalg/Transforms/BufferizableOpInterfaceImpl.h"
 #include "byteir/Utils/OpInterfaceUtils.h"
+#include "byteir/Dialect/Ccl/Transforms/CclBufferizeOpInterfaceImpl.h"
+#include "byteir/Dialect/Ccl/IR/CclOps.h"
 #include "mhlo/IR/hlo_ops.h"
 #include "mhlo/interfaces/bufferizable_op_interface_impl.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -81,7 +83,7 @@ struct OneShotBufferizePass
                     byre::ByreDialect, linalg::LinalgDialect,
                     linalg_ext::LinalgExtDialect, memref::MemRefDialect,
                     mhlo::MhloDialect, scf::SCFDialect, shape::ShapeDialect,
-                    vector::VectorDialect>();
+                    vector::VectorDialect, ccl::CclDialect>();
     byre::registerBufferizableOpInterfaceExternalModels(registry);
     arith::registerBufferizableOpInterfaceExternalModels(registry);
     bufferization::func_ext::registerBufferizableOpInterfaceExternalModels(
@@ -93,6 +95,7 @@ struct OneShotBufferizePass
     shape::registerBufferizableOpInterfaceExternalModels(registry);
     tensor::registerBufferizableOpInterfaceExternalModels(registry);
     vector::registerBufferizableOpInterfaceExternalModels(registry);
+    ccl::registerBufferizableOpInterfaceExternalModels(registry);
   }
 
   static bool isGPUSharedMem(MemRefType type) {

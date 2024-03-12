@@ -184,13 +184,14 @@ def Ccl_BroadcastOp : Ccl_ReplicaGroupsOp<"broadcast"> {
   }];
 
   let arguments = (ins
-    AnyTensor:$src,
-    Optional<AnyTensor>:$dynamic_replica_groups,
+    AnyTypeOf<[AnyTensor, AnyMemRef]>:$src,
+    Optional<AnyTypeOf<[AnyTensor, AnyMemRef]>>:$dynamic_replica_groups,
     BoolAttr:$synchronous,
     OptionalAttr<IndexListArrayAttr>:$replica_groups,
     OptionalAttr<I64Attr>:$unique_id
   );
-  let results = (outs AnyTensor:$result);
+
+  let results = (outs Variadic<AnyTypeOf<[AnyTensor, AnyMemRef]>>:$result);
   let assemblyFormat = [{
     $src (`,` $dynamic_replica_groups^)? attr-dict `:` functional-type(operands, results)
   }];
@@ -209,13 +210,13 @@ def Ccl_SendOp : Ccl_Op<"send", [
   }];
 
   let arguments = (ins
-    AnyTensor:$src,
+    AnyTypeOf<[AnyTensor, AnyMemRef]>:$src,
     Optional<I64>:$dynamic_target_index,
     BoolAttr:$synchronous,
     OptionalAttr<I64Attr>:$target_index
   );
-  let results = (outs AnyTensor:$result);
-
+  let results = (outs Variadic<AnyTypeOf<[AnyTensor, AnyMemRef]>>:$result);
+  
   let hasVerifier = 1;
 }
 
