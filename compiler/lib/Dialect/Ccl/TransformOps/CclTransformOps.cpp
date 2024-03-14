@@ -65,7 +65,7 @@ transform::DecomposeAllReduceOp::apply(TransformRewriter &rewriter,
     }
 
     int64_t axis = static_cast<int64_t>(getAxis());
-    Value oldResult = allReduceOp.getResult();
+    Value oldResult = allReduceOp.getResult()[0];
     ShapedType oldResultType = oldResult.getType().cast<ShapedType>();
     if (!oldResultType.hasRank()) {
       DiagnosedSilenceableFailure diag =

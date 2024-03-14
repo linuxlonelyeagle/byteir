@@ -121,18 +121,6 @@ void mlir::ccl::AllReduceOp::build(::mlir::OpBuilder &builder,
   result.addTypes(src.getType());
 }
 
-LogicalResult
-AllReduceOp::inferReturnTypes(MLIRContext *, std::optional<Location> location,
-                              ValueRange operands, DictionaryAttr,
-                              OpaqueProperties, RegionRange,
-                              SmallVectorImpl<Type> &inferredReturnTypes) {
-  if (operands.size() != 1)
-    return emitOptionalError(
-        location, "Expected operands' number equal to 1 for ccl.all_reduce");
-  inferredReturnTypes.push_back(operands[0].getType());
-  return success();
-}
-
 LogicalResult AllReduceOp::verify() {
   auto reduction = getReduction();
   if (reduction != getRedOpSumName() && reduction != getRedOpProdName() &&
@@ -256,15 +244,6 @@ LogicalResult SendOp::verify() {
                         getDynamicTargetIndex());
 }
 
-LogicalResult
-SendOp::inferReturnTypes(MLIRContext *, std::optional<Location> location,
-                         ValueRange operands, DictionaryAttr, OpaqueProperties,
-                         RegionRange,
-                         SmallVectorImpl<Type> &inferredReturnTypes) {
-  inferredReturnTypes.push_back(operands[0].getType());
-  return success();
-}
-
 //===----------------------------------------------------------------------===//
 // ccl.recv
 //===----------------------------------------------------------------------===//
@@ -272,15 +251,6 @@ SendOp::inferReturnTypes(MLIRContext *, std::optional<Location> location,
 LogicalResult RecvOp::verify() {
   return verifyP2PIndex(getLoc(), getSourceIndexAttr(),
                         getDynamicSourceIndex());
-}
-
-LogicalResult
-RecvOp::inferReturnTypes(MLIRContext *, std::optional<Location> location,
-                         ValueRange operands, DictionaryAttr, OpaqueProperties,
-                         RegionRange,
-                         SmallVectorImpl<Type> &inferredReturnTypes) {
-  inferredReturnTypes.push_back(operands[0].getType());
-  return success();
 }
 
 //===----------------------------------------------------------------------===//

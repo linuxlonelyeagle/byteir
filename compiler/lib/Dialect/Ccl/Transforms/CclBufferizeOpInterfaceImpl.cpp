@@ -22,6 +22,7 @@
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 
 #define DEBUG_TYPE "ccl-bufferize"
 #define DBGS() (llvm::dbgs() << "[" DEBUG_TYPE << "]: ")
@@ -59,7 +60,8 @@ struct BroadcastOpInterface
     auto broadcastOp = cast<ccl::BroadcastOp>(op);
     FailureOr<Value> srcBuffer =
         getBuffer(rewriter, broadcastOp.getSrc(), options);
-
+    if (failed(srcBuffer))
+      return failure();
     // Since the `getBuffer` later sets the `dynamicReplicaGroupsBuffer`, the
     // type here is `FailureOr<Value>`.It must be ensured that
     // dynamicReplicaGroupsBuffer has a value, as dynamicReplicaGroupsBuffer
@@ -68,18 +70,6 @@ struct BroadcastOpInterface
     if (broadcastOp.getDynamicReplicaGroups())
       dynamicReplicaGroupsBuffer =
           getBuffer(rewriter, broadcastOp.getDynamicReplicaGroups(), options);
-    if (failed(srcBuffer))
-      return failure();
-    Type resultType;
-    auto opResultType = broadcastOp.getType(0);
-    if (auto rankedType = opResultType.dyn_cast<RankedTensorType>()) {
-      resultType =
-          MemRefType::get(rankedType.getShape(), rankedType.getElementType());
-    } else if (auto unrankedType =
-                   opResultType.dyn_cast<UnrankedTensorType>()) {
-      resultType =
-          mlir::UnrankedMemRefType::get(unrankedType.getElementType(), 0);
-    }
     rewriter.setInsertionPoint(broadcastOp);
     rewriter.create<ccl::BroadcastOp>(op->getLoc(), TypeRange(), srcBuffer.value(), dynamicReplicaGroupsBuffer.value(), broadcastOp.getSynchronous(), broadcastOp.getReplicaGroupsAttr(), broadcastOp.getUniqueIdAttr());
     bufferization::replaceOpWithBufferizedValues(rewriter, op, {srcBuffer.value()});
@@ -104,13 +94,77 @@ struct SendOpInterface : public BufferizableOpInterface::ExternalModel<SendOpInt
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter, const BufferizationOptions &options) const {
+    auto sendOp = cast<ccl::SendOp>(op);
+    FailureOr<Value> srcBuffer = getBuffer(rewriter, sendOp.getSrc(), options);
+    if (failed(srcBuffer))
+      return failure(); 
+    rewriter.setInsertionPoint(sendOp);
+    rewriter.create<ccl::SendOp>(sendOp->getLoc(), TypeRange(), srcBuffer.value(), sendOp.getDynamicTargetIndex(), sendOp.getSynchronousAttr(), sendOp.getTargetIndexAttr());
+    bufferization::replaceOpWithBufferizedValues(rewriter, op, srcBuffer.value());
     return success();
   }
+};
+
+struct RecvOpInterface : public BufferizableOpInterface::ExternalModel<RecvOpInterface, ccl::RecvOp> {
+   bool bufferizesToMemoryRead(Operation *, OpOperand &,
+                              const AnalysisState &) const {
+    return false;
+  }
+
+  bool bufferizesToMemoryWrite(Operation *, OpOperand &,
+                               const AnalysisState &) const {
+    return true;
+  }
+
+  AliasingValueList getAliasingValues(Operation *op, OpOperand &,
+                                      const AnalysisState &) const {
+    return {};
+  }
+
+  LogicalResult bufferize(Operation *op, RewriterBase &rewriter, const BufferizationOptions &options) const {
+    auto recvOp = cast<ccl::RecvOp>(op);
+    FailureOr<Value> srcBuffer = getBuffer(rewriter, recvOp.getSrc(), options);
+    if (failed(srcBuffer))
+      return failure(); 
+    rewriter.setInsertionPoint(recvOp);
+    rewriter.create<ccl::RecvOp>(recvOp->getLoc(), TypeRange(), srcBuffer.value(), recvOp.getDynamicSourceIndex(), recvOp.getSynchronousAttr(), recvOp.getSourceIndexAttr());
+    bufferization::replaceOpWithBufferizedValues(rewriter, op, srcBuffer.value());
+    return success();
+  }
+};
+
+struct AllReduceOpInterface : public BufferizableOpInterface::ExternalModel<AllReduceOpInterface, ccl::AllReduceOp> {
+  bool bufferizesToMemoryRead(Operation *, OpOperand &, const AnalysisState &) const {
+    return false;
+  }
+
+  bool bufferizesToMemoryWrite(Operation *, OpOperand &, const AnalysisState &) const {
+    return true;
+  }
+
+  AliasingValueList getAliasingValues(Operation *op, OpOperand &, const AnalysisState &) const {
+    return {};
+  }
+
+  LogicalResult bufferize(Operation *op, RewriterBase &rewriter, const BufferizationOptions &options) const {
+    auto allReduceOp = cast<ccl::AllReduceOp>(op);
+    FailureOr<Value> srcBuffer = getBuffer(rewriter, allReduceOp.getSrc(), options);
+    if (failed(srcBuffer))
+      return failure(); 
+    rewriter.setInsertionPoint(allReduceOp);
+    auto memrefType = cast<MemRefType>(srcBuffer.value().getType());
+    auto allocOp = rewriter.create<memref::AllocOp>(allReduceOp.getLoc(), memrefType);
+    //rewriter.create<ccl::AllReduceOp>(allReduceOp->getLoc(), TypeRange(), srcBuffer.value(), recvOp.getDynamicSourceIndex(), recvOp.getSynchronousAttr(), recvOp.getSourceIndexAttr());
+    bufferization::replaceOpWithBufferizedValues(rewriter, op, srcBuffer.value());*/
+    return success();
+  } 
 };
 } // namespace
 
 void mlir::ccl::registerBufferizableOpInterfaceExternalModels(DialectRegistry &registry) {
   registry.addExtension(+[](MLIRContext *ctx, ccl::CclDialect *dialect) {
     ccl::BroadcastOp::attachInterface<BroadcastOpInterface>(*ctx);
+    ccl::SendOp::attachInterface<SendOpInterface>(*ctx);
+    ccl::RecvOp::attachInterface<RecvOpInterface>(*ctx);
   });
 }

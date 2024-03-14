@@ -299,12 +299,12 @@ LogicalResult mlir::yieldTiledValuesForMultiDst(
         //   }
         // }
         // TODO: there might be other types of all reduce
-        Value cclRes = b.create<ccl::AllReduceOp>(
-            loc, yieldedValue.value(), /*dynamic_replica_groups*/ nullptr,
+        auto cclRes = b.create<ccl::AllReduceOp>(
+            loc, yieldedValue.value().getType(), yieldedValue.value(), /*dynamic_replica_groups*/ nullptr,
             /*synchronous*/ true, ccl::getRedOpSumName(),
             /*replica_groups*/ nullptr,
             /*unique_id*/ nullptr);
-        inserts.push_back(cclRes);
+        inserts.push_back(cclRes.getResult()[0]);
       } else {
         Value insert = b.create<tensor::InsertSliceOp>(
             loc, yieldedValue.value(), newBBArgs[yieldedValue.index()],

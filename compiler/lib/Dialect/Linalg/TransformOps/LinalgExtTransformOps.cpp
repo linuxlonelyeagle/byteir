@@ -1349,7 +1349,7 @@ DiagnosedSilenceableFailure transform::SharedOutputToDistributedStyleOp::apply(
     parallelBlock->clear();
     builder.setInsertionPointAfterValue(retVal);
     auto allReduceOp = builder.create<ccl::AllReduceOp>(
-        retVal.getLoc(), retVal, /*dynamic_replica_groups*/ nullptr,
+        retVal.getLoc(), retVal.getType(), retVal, /*dynamic_replica_groups*/ nullptr,
         /*synchronous*/ rewriter.getBoolAttr(true), reduceType,
         /*replica_groups*/ replicaGroupAttrs, /*unique_id*/ nullptr);
 
@@ -1359,7 +1359,7 @@ DiagnosedSilenceableFailure transform::SharedOutputToDistributedStyleOp::apply(
     maps.append(2, AffineMap::getMultiDimIdentityMap(retType.getRank(), ctx));
     SmallVector<Value> newMergeInputs;
     SmallVector<Value> newMergeOutputs;
-    newMergeInputs.push_back(allReduceOp.getResult());
+    newMergeInputs.push_back(allReduceOp.getResult()[0]);
     newMergeOutputs.push_back(mergeOp.getOutputs()[0]);
     linalg::GenericOp finalMergeOp = builder.create<linalg::GenericOp>(
         mergeOp->getLoc(), mergeOp->getResultTypes()[0], newMergeInputs,

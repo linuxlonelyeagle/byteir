@@ -24,3 +24,13 @@ func.func @broadcast_dynamic(%arg0: tensor<2x3x8xf32>, %arg1: tensor<2x1xindex>)
 // CHECK:           ccl.broadcast %[[VAL_0]], %[[VAL_2]] {synchronous = true} : (memref<2x3x8xf32>, memref<2x1xindex>) -> ()
 // CHECK:           return %[[VAL_0]] : memref<2x3x8xf32>
 // CHECK:         }
+
+// -----
+
+func.func @main(%arg0: tensor<3xf32>) -> (tensor<3xf32>) {
+  %0 = "ccl.send"(%arg0) {sync = true, synchronous=true} : (tensor<3xf32>) -> tensor<3xf32>
+  return %0 : tensor<3xf32>
+}
+
+
+

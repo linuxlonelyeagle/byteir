@@ -64,8 +64,7 @@ class Ccl_ReplicaGroupsOp<string mnemonic, list<Trait> traits = []> :
   }];
 }
 
-def Ccl_AllReduceOp : Ccl_ReplicaGroupsOp<"all_reduce",
-    [DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+def Ccl_AllReduceOp : Ccl_ReplicaGroupsOp<"all_reduce"> {
   let summary = "AllReduce operator";
   let description = [{
     Performs a reduction specified by `reduction` attribute across replicas.
@@ -80,15 +79,14 @@ def Ccl_AllReduceOp : Ccl_ReplicaGroupsOp<"all_reduce",
   }];
 
   let arguments = (ins
-    AnyTensor:$src,
-    Optional<AnyTensor>:$dynamic_replica_groups,
+    AnyTypeOf<[AnyTensor, AnyMemRef]>:$src,
+    Optional<AnyTypeOf<[AnyTensor, AnyMemRef]>>:$dynamic_replica_groups,
     BoolAttr:$synchronous,
     StrAttr:$reduction,
     OptionalAttr<IndexListArrayAttr>:$replica_groups,
     OptionalAttr<I64Attr>:$unique_id
   );
-  let results = (outs AnyTensor:$result);
-
+  let results = (outs Variadic<AnyTypeOf<[AnyTensor, AnyMemRef]>>:$result);
   let builders = [
   OpBuilder<(ins "Value":$src, "StringAttr":$reduction,
                   "ArrayAttr":$replica_groups, "IntegerAttr":$unique_id,
@@ -200,10 +198,7 @@ def Ccl_BroadcastOp : Ccl_ReplicaGroupsOp<"broadcast"> {
   let hasCanonicalizer = 1;
 }
 
-def Ccl_SendOp : Ccl_Op<"send", [
-    SameOperandsAndResultElementType,
-    SameOperandsAndResultShape,
-    DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+def Ccl_SendOp : Ccl_Op<"send"> {
   let summary = "Send operator";
   let description = [{
     Send `src` tensor to `target_index` or `dynamic_target_index` device.
@@ -220,10 +215,7 @@ def Ccl_SendOp : Ccl_Op<"send", [
   let hasVerifier = 1;
 }
 
-def Ccl_RecvOp : Ccl_Op<"recv", [
-    SameOperandsAndResultElementType,
-    SameOperandsAndResultShape,
-    DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+def Ccl_RecvOp : Ccl_Op<"recv"> {
   let summary = "Recv operator";
   let description = [{
     Recv tensor from `source_index` or `dynamic_source_index`.
@@ -231,12 +223,12 @@ def Ccl_RecvOp : Ccl_Op<"recv", [
   }];
 
   let arguments = (ins
-    AnyTensor:$src,
+    AnyTypeOf<[AnyTensor, AnyMemRef]>:$src,
     Optional<I64>:$dynamic_source_index,
     BoolAttr:$synchronous,
     OptionalAttr<I64Attr>:$source_index
   );
-  let results = (outs AnyTensor:$result);
+  let results = (outs Variadic<AnyTypeOf<[AnyTensor, AnyMemRef]>>:$result);
 
   let hasVerifier = 1;
 }
